@@ -1,0 +1,26 @@
+[project]
+name = "paradox-stats"
+version = "0.1.0"
+description = "Temporally-gated NFL team and player statistics service"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111",
+    "uvicorn[standard]",
+    "nfl_data_py",
+    "pandas",
+    "pyarrow",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "httpx",
+    "pytest-asyncio",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
