@@ -43,6 +43,7 @@ REQUIRED_COLUMNS = [
     "kick_distance",
     "extra_point_attempt",
     "extra_point_result",
+    "receiving_yards",
 ]
 
 _SOURCE_COLUMNS = [c for c in REQUIRED_COLUMNS if c != "game_clock_total_seconds"] + [
