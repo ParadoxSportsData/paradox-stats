@@ -1,5 +1,6 @@
-"""PDX-31: Load nflfastR play-by-play data for a full season."""
+"""PDX-31/PDX-42: Load nflfastR play-by-play data — load_season() and LazySeasonLoader."""
 import logging
+from collections import OrderedDict
 
 import nfl_data_py as nfl
 import pandas as pd
@@ -78,9 +79,36 @@ def load_season(year: int) -> pd.DataFrame:
     available = [c for c in REQUIRED_COLUMNS if c in raw.columns]
     df = raw[available].copy()
     logger.info(
-        "Loaded %d plays for %d season (%d games)",
+        "loader.load_season: loaded %d plays for %d season (%d games)",
         len(df),
         year,
         df["game_id"].nunique(),
     )
     return df
+
+
+class LazySeasonLoader:
+    """Loads season pbp data on demand and caches with LRU eviction."""
+
+    def __init__(self, max_seasons: int = 3) -> None:
+        self._cache: OrderedDict[int, pd.DataFrame] = OrderedDict()
+        self._max_seasons = max_seasons
+
+    def get_season(self, year: int) -> pd.DataFrame:
+        if year in self._cache:
+            self._cache.move_to_end(year)
+            return self._cache[year]
+
+        pbp = load_season(year)
+        self._cache[year] = pbp
+        if len(self._cache) > self._max_seasons:
+            evicted, _ = self._cache.popitem(last=False)
+            logger.info("loader.LazySeasonLoader.get_season: evicted season %d", evicted)
+        return pbp
+
+    def game_ids(self, year: int) -> list[str]:
+        pbp = self.get_season(year)
+        return sorted(pbp["game_id"].unique().tolist())
+
+    def loaded_seasons(self) -> list[int]:
+        return list(self._cache.keys())
