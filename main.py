@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from loader import LazySeasonLoader
+from routers.games import router as games_router
 from routers.stats import router as stats_router
 from stats.registry import StatsMatrixRegistry
 
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="paradox-stats", version="0.1.0", lifespan=lifespan)
+app.include_router(games_router)
 app.include_router(stats_router)
 app.add_middleware(
     CORSMiddleware,
