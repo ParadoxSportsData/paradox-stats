@@ -17,31 +17,40 @@ The implementation pre-computes cumulative stats at each play boundary (~150 per
 
 ## Architecture
 
-```
-Request: GET /game/{id}/stats?tick=1800
-         │
-         ▼
-StatsMatrixRegistry.get_or_build(game_id, pbp)
-         │
-    ┌────┴────────────────────────┐
-    │ Cache hit (most requests)   │  Cache miss (first request per game)
-    │ registry[game_id]           │  build_stats_matrix(pbp, game_id)
-    └────┬────────────────────────┘        │
-         │                                 │  For each unique tick in pbp:
-         │                                 │    aggregate_team_stats(pbp, game_id, tick)
-         │                                 │    aggregate_player_stats(pbp, game_id, tick)
-         │                          StatsMatrix._ticks + ._snapshots built
-         │                                 │
-         └─────────────────────────────────┘
-         │
-         ▼
-matrix.query(tick=1800)          ← bisect_right(_ticks, 1800) - 1
-         │
-         ▼
-StatsSnapshot → JSON response
+### Request and cache pipeline
+
+```mermaid
+flowchart TD
+    Req["GET /game/{id}/stats?tick=T"]
+    Registry["StatsMatrixRegistry\nget_or_build(game_id)"]
+    Hit["cache hit\nregistry[game_id]"]
+    Miss["cache miss\nbuild_stats_matrix(pbp)"]
+    Loader["LazySeasonLoader\nget_season(year)"]
+    Build["for each tick boundary:\naggregate_team_stats()\naggregate_player_stats()"]
+    Matrix["StatsMatrix\n._ticks + ._snapshots"]
+    Query["matrix.query(tick=T)\nbisect_right(_ticks, T) − 1"]
+    Resp["StatsSnapshot → JSON"]
+
+    Req --> Registry
+    Registry -->|hit| Hit
+    Registry -->|miss| Miss
+    Miss --> Loader
+    Loader --> Build
+    Build --> Matrix
+    Hit --> Query
+    Matrix --> Query
+    Query --> Resp
 ```
 
 ### Two-Level LRU Cache
+
+```mermaid
+flowchart LR
+    Req2["request"] --> R2["StatsMatrixRegistry\nLRU cap: 100 games"]
+    R2 -->|miss| L2["LazySeasonLoader\nLRU cap: 3 seasons"]
+    L2 -->|miss| NDPy["nfl_data_py\n(local cache)"]
+    R2 -->|"hit: O(log 150)"| Resp2["JSON response"]
+```
 
 | Level | Class | Default | Eviction |
 |---|---|---|---|
