@@ -33,7 +33,7 @@ class StatsMatrixRegistry:
                 return self._cache[game_id]
 
             logger.info("stats.registry.StatsMatrixRegistry.get_or_build: building %s", game_id)
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             matrix = await loop.run_in_executor(None, build_stats_matrix, pbp, game_id)
 
             self._cache[game_id] = matrix
