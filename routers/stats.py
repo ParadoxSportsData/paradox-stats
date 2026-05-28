@@ -3,17 +3,24 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from stats.team import TEAM_STAT_FIELDS
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 _SEASON_PREFIX_LEN = 4
+_SEASON_YEAR_MIN = 1999
+_SEASON_YEAR_MAX = 2030
 
 
 def _parse_season_year(game_id: str) -> int:
     try:
-        return int(game_id[:_SEASON_PREFIX_LEN])
+        year = int(game_id[:_SEASON_PREFIX_LEN])
     except (ValueError, IndexError):
         raise HTTPException(status_code=404, detail=f"game_id {game_id!r} not found")
+    if not (_SEASON_YEAR_MIN <= year <= _SEASON_YEAR_MAX):
+        raise HTTPException(status_code=404, detail=f"game_id {game_id!r} not found")
+    return year
 
 
 @router.get("/game/{game_id}/stats")
@@ -27,21 +34,22 @@ async def get_game_stats(game_id: str, request: Request, tick: int = Query(...))
 
     try:
         pbp = loader.get_season(year)
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"game_id {game_id!r} not found")
+    except Exception as exc:
+        logger.warning("stats.get_game_stats: upstream data unavailable for year %d: %s", year, exc)
+        raise HTTPException(status_code=503, detail="upstream data service unavailable")
 
     if game_id not in pbp["game_id"].values:
         raise HTTPException(status_code=404, detail=f"game_id {game_id!r} not found")
 
-    matrix = await registry.get_or_build(game_id, pbp)
+    try:
+        matrix = await registry.get_or_build(game_id, pbp)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
     snap = matrix.query(tick)
 
     if snap is None:
-        home_stats = {k: 0 for k in ["pass_yards", "completions", "attempts", "pass_tds",
-                                      "interceptions", "rush_yards", "carries", "rush_tds",
-                                      "fumbles_lost", "turnovers", "sacks_allowed", "sacks",
-                                      "first_downs", "third_down_attempts",
-                                      "third_down_conversions", "epa"]}
+        home_stats = {k: 0 for k in TEAM_STAT_FIELDS}
         away_stats = dict(home_stats)
         empty_players = {"qb": [], "rb": [], "wr_te": [], "k": []}
         home_players = empty_players
