@@ -1,5 +1,5 @@
 """PDX-33: Temporally-gated player statistics aggregator — QB/RB/WR/TE/K."""
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -23,7 +23,8 @@ def _imax(s: pd.Series) -> int:
     return int(s.max()) if len(s) > 0 else 0
 
 
-def _aggregate_qbs(plays: pd.DataFrame) -> list:
+def _aggregate_qbs(plays: pd.DataFrame) -> list[dict[str, Any]]:
+    """Aggregate passing, rushing, and sack statistics for all quarterbacks in plays."""
     pass_plays = plays[plays["pass_attempt"] == 1]
     sack_plays = plays[plays["sack"] == 1]
 
@@ -88,7 +89,8 @@ def _aggregate_qbs(plays: pd.DataFrame) -> list:
     return result
 
 
-def _aggregate_rbs(plays: pd.DataFrame) -> list:
+def _aggregate_rbs(plays: pd.DataFrame) -> list[dict[str, Any]]:
+    """Aggregate rushing and receiving statistics for all running backs in plays."""
     rush_plays = plays[plays["rush_attempt"] == 1]
     if rush_plays.empty:
         return []
@@ -144,7 +146,8 @@ def _aggregate_rbs(plays: pd.DataFrame) -> list:
     return result
 
 
-def _aggregate_wr_te(plays: pd.DataFrame, rb_ids: set) -> list:
+def _aggregate_wr_te(plays: pd.DataFrame, rb_ids: set) -> list[dict[str, Any]]:
+    """Aggregate receiving statistics for wide receivers and tight ends (non-RB receivers) in plays."""
     pass_plays = plays[plays["pass_attempt"] == 1]
     if pass_plays.empty:
         return []
@@ -177,7 +180,8 @@ def _aggregate_wr_te(plays: pd.DataFrame, rb_ids: set) -> list:
     return result
 
 
-def _aggregate_kickers(plays: pd.DataFrame) -> list:
+def _aggregate_kickers(plays: pd.DataFrame) -> list[dict[str, Any]]:
+    """Aggregate field goal and extra point statistics for all kickers in plays."""
     k_plays = plays[
         (plays["field_goal_attempt"] == 1) | (plays["extra_point_attempt"] == 1)
     ]
@@ -194,10 +198,10 @@ def _aggregate_kickers(plays: pd.DataFrame) -> list:
     )
 
     result = []
-    for _, row in grp.iterrows():
-        kid = row["kicker_player_id"]
-        fg_att = int(row["fg_att"])
-        xp_att = int(row["xp_att"])
+    for row in grp.itertuples(index=False):
+        kid = row.kicker_player_id
+        fg_att = int(row.fg_att)
+        xp_att = int(row.xp_att)
         if fg_att == 0 and xp_att == 0:
             continue
 
@@ -209,7 +213,7 @@ def _aggregate_kickers(plays: pd.DataFrame) -> list:
 
         result.append({
             "player_id": str(kid),
-            "name": str(row["kicker_player_name"]),
+            "name": str(row.kicker_player_name),
             "fg_made": fg_made,
             "fg_att": fg_att,
             "fg_long": fg_long,
